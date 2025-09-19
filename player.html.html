@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Aviator — Player Panel</title>
+<style>
+  :root{--bg:#0b1020;--panel:#121a2b;--card:#141e33;--ink:#e6eef8;--accent:#1fb6ff}
+  *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,Arial;background:var(--bg);color:var(--ink)}
+  header{background:var(--panel);padding:12px 16px;display:flex;align-items:center;justify-content:space-between}
+  header h1{margin:0;font-size:18px}
+  nav{display:flex;gap:8px}
+  nav button{background:var(--accent);border:0;color:#012;padding:8px 12px;border-radius:10px;cursor:pointer}
+  main{padding:16px;max-width:1100px;margin:0 auto}
+  .page{display:block}
+  .card{background:var(--card);border-radius:14px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,.35);margin-bottom:14px}
+  input,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.06);background:#0d1528;color:var(--ink)}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .btn{padding:10px 14px;border-radius:10px;border:0;font-weight:800;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#012}
+  .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.06);color:var(--ink)}
+  .game-wrap{display:grid;gap:14px}
+  @media(min-width:900px){.game-wrap{grid-template-columns:1.2fr .8fr}}
+  .hud{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
+  .multiplier-big{font-size:42px;font-weight:900}
+  .canvas-wrap{background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));border-radius:12px;padding:10px}
+  canvas{width:100%;height:260px;background:#071327;border-radius:10px;display:block}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:8px;border-bottom:1px solid rgba(255,255,255,.04);text-align:left}
+  .muted{color:#9fb0d6;font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Aviator Game — Player</h1>
+  <nav>
+    <button onclick="show('home')">Home</button>
+    <button onclick="show('game')">Game</button>
+    <button onclick="show('account')">Account</button>
+    <button onclick="show('recharge')">Request Coins</button>
+    <!-- Admin is intentionally not shown here -->
+    <button id="loginBtn" onclick="show('login')">Login</button>
+    <button id="logoutBtn" onclick="logout()" style="display:none">Logout</button>
+  </nav>
+</header>
+
+<main>
+  <!-- HOME -->
+  <section id="home" class="page">
+    <div class="card">
+      <h2>Welcome</h2>
+      <p>User: <strong id="homeUser">Please login</strong></p>
+      <p>Balance: <strong id="homeBalance">0</strong></p>
+      <div style="margin-top:12px" class="row">
+        <button class="btn primary" onclick="show('game')">Play Game</button>
+        <button class="btn ghost" onclick="show('recharge')">Request Coins</button>
+      </div>
+      <p class="muted" style="margin-top:8px">Note: This is a client-side demo using localStorage only.</p>
+    </div>
+  </section>
+
+  <!-- GAME -->
+  <section id="game" style="display:none" class="page">
+    <div class="game-wrap">
+      <div class="card">
+        <div class="hud">
+          <div>Balance: <strong id="gameBalance">0</strong></div>
+          <div style="text-align:right">
+            <div class="multiplier-big" id="displayMultiplier">1.00x</div>
+            <div class="muted" id="roundStatus">Waiting to bet</div>
+          </div>
+        </div>
+
+        <div class="canvas-wrap">
+          <canvas id="canvas" width="900" height="320"></canvas>
+        </div>
+
+        <div style="margin-top:10px" class="row">
+          <input type="number" id="bet" placeholder="Bet amount (coins)" value="50" min="1" style="flex:1" />
+          <button class="btn primary" id="betBtn">Bet</button>
+          <button class="btn ghost" id="cashBtn" disabled>Cash Out</button>
+        </div>
+
+        <div style="margin-top:8px" class="row">
+          <div class="muted">Auto-cash: <strong>1000x (fixed)</strong></div>
+          <div class="muted" style="margin-left:auto">Last payout: <span id="lastP">-</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Round History</h3>
+        <table id="historyTable">
+          <thead><tr><th>#</th><th>Result</th><th>Bet</th><th>Payout</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ACCOUNT -->
+  <section id="account" style="display:none" class="page">
+    <div class="card">
+      <h2>Account</h2>
+      <p>Username: <strong id="accName">-</strong></p>
+      <p>Balance: <strong id="accBal">0</strong></p>
+    </div>
+  </section>
+
+  <!-- RECHARGE REQUEST -->
+  <section id="recharge" style="display:none" class="page">
+    <div class="card">
+      <h2>Request Coins</h2>
+      <label>Amount<input id="reqAmount" type="number" min="1" placeholder="e.g., 500" /></label>
+      <label>Note (optional)<textarea id="reqNote" placeholder="Message to admin"></textarea></label>
+      <div class="row" style="margin-top:8px">
+        <button class="btn primary" onclick="sendRequest()">Send Request</button>
+        <button class="btn ghost" onclick="renderMyRequests()">Refresh</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>My Pending Requests</h3>
+      <table id="myReq">
+        <thead><tr><th>ID</th><th>Amount</th><th>Note</th><th>Time</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>My Recharge History</h3>
+      <table id="myLog">
+        <thead><tr><th>ID</th><th>Status</th><th>Amount</th><th>By</th><th>Time</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- LOGIN -->
+  <section id="login" style="display:none" class="page">
+    <div class="card">
+      <h2>Login / Create Account</h2>
+      <input id="username" placeholder="Enter username" />
+      <div style="margin-top:8px" class="row">
+        <button class="btn primary" onclick="userLogin()">Login / Create</button>
+        <button class="btn ghost" onclick="show('home')">Cancel</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+/*
+  player.html - Single-file player panel
+  Data keys (localStorage):
+   - users : { username: { balance: number } }
+   - currentUser : username
+   - requests : [ { id, user, amount, note, ts } ]
+   - logs : [ { id, status, user, amount, by, ts, note } ]
+*/
+
+const LS_USERS='users', LS_CUR='currentUser', LS_REQ='requests', LS_LOG='logs';
+if(!localStorage.getItem(LS_USERS)) localStorage.setItem(LS_USERS, JSON.stringify({}));
+if(!localStorage.getItem(LS_REQ)) localStorage.setItem(LS_REQ, JSON.stringify([]));
+if(!localStorage.getItem(LS_LOG)) localStorage.setItem(LS_LOG, JSON.stringify([]));
+
+const ADMIN_USER='admin'; // admin username (same as admin.html must use)
+const ADMIN_PASS='1234';  // not used here; shown for your reference
+
+// helpers
+const now = ()=>new Date().toLocaleString();
+const uid = ()=>Math.random().toString(36).slice(2,8).toUpperCase();
+function getUsers(){ return JSON.parse(localStorage.getItem(LS_USERS)); }
+function saveUsers(u){ localStorage.setItem(LS_USERS, JSON.stringify(u)); }
+function getCurrent(){ return localStorage.getItem(LS_CUR); }
+function setCurrent(name){ localStorage.setItem(LS_CUR, name); }
+function getReqs(){ return JSON.parse(localStorage.getItem(LS_REQ)); }
+function saveReqs(r){ localStorage.setItem(LS_REQ, JSON.stringify(r)); }
+function getLogs(){ return JSON.parse(localStorage.getItem(LS_LOG)); }
+function saveLogs(l){ localStorage.setItem(LS_LOG, JSON.stringify(l)); }
+
+// UI helpers
+function show(id){ document.querySelectorAll('main .page, main section').forEach(s=>s.style.display='none'); document.getElementById(id).style.display='block'; if(id==='recharge'){ renderMyRequests(); renderMyLogs(); } if(id==='game'){ drawScene(); } }
+function updateHeader(){
+  const u=getCurrent();
+  const loginBtn=document.getElementById('loginBtn'), logoutBtn=document.getElementById('logoutBtn');
+  if(u){ loginBtn.style.display='none'; logoutBtn.style.display='inline-block'; } else { loginBtn.style.display='inline-block'; logoutBtn.style.display='none'; }
+  document.getElementById('homeUser').textContent = u || 'Please login';
+  const users = getUsers();
+  const bal = (u && users[u])? users[u].balance : 0;
+  document.getElementById('homeBalance').textContent = bal;
+  document.getElementById('accName').textContent = u || '-';
+  document.getElementById('accBal').textContent = bal;
+  document.getElementById('gameBalance').textContent = bal;
+}
+
+// login / logout
+function userLogin(){
+  const name = document.getElementById('username').value.trim();
+  if(!name) return alert('Enter username');
+  const users = getUsers();
+  if(!users[name]) users[name]={ balance: 1000 }; // new user default balance
+  saveUsers(users);
+  setCurrent(name);
+  updateHeader();
+  show('home');
+}
+function logout(){ localStorage.removeItem(LS_CUR); updateHeader(); show('home'); }
+
+// recharge request
+function sendRequest(){
+  const user = getCurrent(); if(!user) return alert('Login first');
+  const amt = parseInt(document.getElementById('reqAmount').value);
+  if(!amt || amt<=0) return alert('Enter a valid amount');
+  const note = document.getElementById('reqNote').value.trim();
+  const reqs = getReqs();
+  const id = uid();
+  reqs.push({ id, user, amount: amt, note, ts: now() });
+  saveReqs(reqs);
+  document.getElementById('reqAmount').value=''; document.getElementById('reqNote').value='';
+  alert('Request sent: ' + id);
+  renderMyRequests();
+}
+
+// render player's pending requests
+function renderMyRequests(){
+  const tbody = document.querySelector('#myReq tbody'); tbody.innerHTML='';
+  const user=getCurrent(); if(!user){ tbody.innerHTML = '<tr><td colspan="4" class="muted">Login to see requests</td></tr>'; return; }
+  const reqs = getReqs().filter(r=>r.user===user);
+  if(!reqs.length){ tbody.innerHTML='<tr><td colspan="4" class="muted">No pending requests</td></tr>'; return; }
+  tbody.innerHTML = reqs.map(r=>`<tr><td>${r.id}</td><td>${r.amount}</td><td>${r.note||''}</td><td>${r.ts}</td></tr>`).join('');
+}
+
+// render player's logs
+function renderMyLogs(){
+  const tbody = document.querySelector('#myLog tbody'); tbody.innerHTML='';
+  const user = getCurrent(); if(!user){ tbody.innerHTML='<tr><td colspan="5" class="muted">Login to see history</td></tr>'; return; }
+  const logs = getLogs().filter(l=>l.user===user).sort((a,b)=> new Date(b.ts) - new Date(a.ts));
+  if(!logs.length){ tbody.innerHTML='<tr><td colspan="5" class="muted">No history</td></tr>'; return; }
+  tbody.innerHTML = logs.map(l=>`<tr><td>${l.id}</td><td>${l.status}</td><td>${l.amount}</td><td>${l.by}</td><td>${l.ts}</td></tr>`).join('');
+}
+
+/* =========================
+   GAME: Graph + Plane + 1000x auto-cash
+   ========================= */
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const displayMultiplier = document.getElementById('displayMultiplier');
+const roundStatus = document.getElementById('roundStatus');
+const betBtn = document.getElementById('betBtn');
+const cashBtn = document.getElementById('cashBtn');
+const betInput = document.getElementById('bet');
+const historyBody = document.querySelector('#historyTable tbody');
+let inRound=false, multiplier=1, crashAt=0, currentBet=0, raf=null, startTime=0, points=[], roundNo=0;
+
+function randomCrash(){
+  // heavy-tail-like distribution
+  const u = Math.random(), k=6;
+  const val = 1 + (Math.exp(k*u)-1)/(Math.exp(k)-1) * 100; // up to ~100x
+  return +Math.max(1, val).toFixed(2);
+}
+
+function startRound(){
+  const user = getCurrent(); if(!user) return alert('Login first');
+  const users = getUsers(); const bet = Math.max(1, Math.floor(parseFloat(betInput.value)||0));
+  if(bet <= 0) return alert('Enter a valid bet');
+  if(bet > (users[user].balance||0)) return alert('Insufficient balance');
+  // deduct
+  users[user].balance -= bet; saveUsers(users); updateHeader();
+  inRound=true; multiplier=1; crashAt=randomCrash(); currentBet=bet; startTime=0;
+  points=[{t:0,m:1}]; roundNo++;
+  roundStatus.textContent='Live — Cash Out!';
+  betBtn.disabled=true; cashBtn.disabled=false;
+  raf = requestAnimationFrame(animate);
+}
+
+function cashOut(){
+  if(!inRound) return;
+  const payout = +(currentBet * multiplier).toFixed(2);
+  const user = getCurrent(); const users = getUsers();
+  users[user].balance += payout; saveUsers(users); updateHeader();
+  pushHistory({id:roundNo, result:`Cashed @ ${multiplier.toFixed(2)}x`, bet: currentBet, payout});
+  document.getElementById('lastP').textContent = payout;
+  endRound('cashed');
+}
+
+function endRound(type){
+  inRound=false;
+  betBtn.disabled=false; cashBtn.disabled=true;
+  if(type==='crash'){ roundStatus.textContent = `Crashed at ${crashAt}x`; document.getElementById('lastP').textContent = '0'; pushHistory({id:roundNo, result:`Crash @ ${crashAt}x`, bet:0, payout:0}); }
+  else roundStatus.textContent = `Cashed out at ${multiplier.toFixed(2)}x`;
+  if(raf) cancelAnimationFrame(raf);
+}
+
+function pushHistory({id,result,bet,payout}){
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td>${id}</td><td>${result}</td><td>${bet}</td><td>${payout}</td>`;
+  historyBody.prepend(tr);
+  while(historyBody.children.length>30) historyBody.removeChild(historyBody.lastChild);
+}
+
+function animate(ts){
+  if(!startTime) startTime = ts;
+  const t = (ts - startTime) / 1000;
+  // gentle exponential growth
+  const b = 1.2 / 6;
+  const a = 9;
+  multiplier = 1 + a*(Math.exp(b*t)-1);
+  // check auto-cash at 1000x (fixed)
+  if(inRound && multiplier >= 1000){
+    // auto-cash at 1000x
+    multiplier = 1000;
+    displayMultiplier.textContent = multiplier.toFixed(2) + 'x';
+    cashOut();
+    return;
+  }
+  // update ui
+  displayMultiplier.textContent = multiplier.toFixed(2) + 'x';
+  // crash check
+  if(inRound && multiplier >= crashAt){
+    multiplier = crashAt;
+    endRound('crash');
+    return;
+  }
+  // points
+  points.push({t, m:multiplier});
+  if(points.length > 600) points.shift();
+  drawScene();
+  raf = requestAnimationFrame(animate);
+}
+
+function drawScene(){
+  // canvas scaling for crisp drawing
+  const w = canvas.width = canvas.clientWidth * devicePixelRatio;
+  const h = canvas.height = canvas.clientHeight * devicePixelRatio;
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  ctx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight);
+  // bg
+  ctx.fillStyle='#061022'; ctx.fillRect(0,0,canvas.clientWidth,canvas.clientHeight);
+  // grid
+  ctx.strokeStyle='rgba(255,255,255,.05)'; ctx.lineWidth=1;
+  const rows=5, cols=8;
+  for(let i=1;i<rows;i++){ const y = i * canvas.clientHeight/rows; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.clientWidth,y); ctx.stroke(); }
+  for(let j=1;j<cols;j++){ const x = j * canvas.clientWidth/cols; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.clientHeight); ctx.stroke(); }
+  // mapping
+  const maxM = Math.max(4, Math.min((inRound? crashAt*1.2 : (points.at(-1)?.m||2)*1.2), 120));
+  const tSpan = Math.max(6, points.at(-1)?.t || 6);
+  const t2x = t => 20 + (t / tSpan) * (canvas.clientWidth - 40);
+  const m2y = m => canvas.clientHeight - ((Math.min(m, maxM)-1)/(maxM-1))*(canvas.clientHeight-40) - 10;
+  // line
+  ctx.beginPath(); ctx.lineWidth = 2; ctx.strokeStyle='rgba(31,182,255,0.95)';
+  points.forEach((p,i)=>{ const x=t2x(p.t), y=m2y(p.m); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+  ctx.stroke();
+  // plane at last point
+  const last = points.at(-1) || {t:0,m:1}; const px = t2x(last.t), py = m2y(last.m);
+  drawPlane(px,py);
+  // labels
+  ctx.fillStyle='rgba(255,255,255,.85)'; ctx.font='12px Arial';
+  ctx.fillText('Multiplier: ' + multiplier.toFixed(2) + 'x', 10, 16);
+  ctx.fillText('Crash target: ' + (inRound? '—' : (crashAt? crashAt.toFixed(2)+'x':'-')), 10, 32);
+}
+
+function drawPlane(x,y){
+  ctx.save(); ctx.translate(x,y); ctx.rotate(-0.12);
+  ctx.fillStyle='rgba(31,182,255,0.95)'; ctx.beginPath(); ctx.moveTo(0,-8); ctx.lineTo(18,0); ctx.lineTo(0,8); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='rgba(31,182,255,0.6)'; ctx.fillRect(-8,-3,8,6); ctx.restore();
+}
+
+// wire up buttons
+betBtn.addEventListener('click', startRound);
+cashBtn.addEventListener('click', cashOut);
+
+window.addEventListener('resize', drawScene);
+
+// initial render
+updateHeader(); show('home');
+drawScene();
+renderMyRequests();
+renderMyLogs();
+</script>
+</body>
+</html>
